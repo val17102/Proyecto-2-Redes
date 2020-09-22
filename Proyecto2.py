@@ -102,6 +102,16 @@ class Chat(sleekxmpp.ClientXMPP):
     def send_subscription(self, recipient):
         self.send_presence_subscription(pto=recipient, ptype='subscribe')
 
+    def show_contacts(self):
+        self.send_presence()
+        self.get_roster()
+        self.client_roster
+        print("Contactos: ", self.client_roster.groups())
+
+    def remove_contact(self, jid):
+        self.send_presence()
+        self.get_roster()
+        self.del_roster_item(jid)
 
 if __name__ == '__main__':
     # Setup the command line arguments.
@@ -174,6 +184,11 @@ if __name__ == '__main__':
                     elif (option2 == "4"):
                         recipient = input("Enter recipient jid to subscribe")
                         xmpp.send_subscription(recipient)
+                    elif (option2 == "5"):
+                        recipient = input("Enter contact jid to remove")
+                        xmpp.remove_contact(recipient)
+                    elif (option2 == "6"):
+                        xmpp.show_contacts()
                     elif (option2 == "7"):
                         status = input("Enter new status")
                         xmpp.status(status)
