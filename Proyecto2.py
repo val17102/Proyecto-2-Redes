@@ -12,13 +12,14 @@ else:
     raw_input = input
 
 class Chat(sleekxmpp.ClientXMPP):
-    def __init__(self, jid, password, room, nick):
+    def __init__(self, jid, password):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
-        self.room = room
-        self.nick = nick
+        self.room = ''
+        self.nick = ''
 
         self.add_event_handler("session_start", self.start)
+        self.add_event_handler("message", self.incoming_message)
         self.add_event_handler("changed_status", self.notification_changed_status)
         self.add_event_handler("changed_subscription", self.notification_changed_subscription) 
         self.add_event_handler("got_offline", self.notification_got_offline)
@@ -32,19 +33,19 @@ class Chat(sleekxmpp.ClientXMPP):
     
     def notification_changed_status(self, presence):
         print("Notificaction Changed Status")
-        print(presence)
+        print(presence['status'])
 
     def notification_changed_subscription(self, presence):
         print("Notificaction Changed Subscription")
-        print(presence)
+        print(presence['type'])
 
     def notification_got_offline(self, presence):
         print("Notificaction Presence Offline")
-        print(presence)
+        print(presence['type'])
 
     def notification_got_online(self, presence):
         print("Notificaction Presence Online")
-        print(presence)
+        print(presence['type'])
 
     def incoming_message(self, message):
         if message['type'] in ('chat','normal'):
@@ -60,8 +61,15 @@ class Chat(sleekxmpp.ClientXMPP):
         self.send_message(mto=recipient,
                           mbody=msg,
                           mtype='chat')
-
     
+    def status(self, status):
+        self.send_presence()
+        self.get_roster()
+        self.make_presence(pfrom=self.jid, pstatus=status)
+
+    def send_subscription(self, recipient):
+        self.send_presence_subscription(pto=recipient, ptype='subscribe')
+
 
 if __name__ == '__main__':
     # Setup the command line arguments.
@@ -96,7 +104,11 @@ if __name__ == '__main__':
     
     option1 = -1
     option2 = -1
-
+    msg = ''
+    recipient = ''
+    room = ''
+    nickname = ''
+    status = ''
     while(option1 != 3):
         print("Menu")
         print("1. Login")
@@ -106,21 +118,36 @@ if __name__ == '__main__':
         if (option1 == "1"):
             opts.jid = raw_input("Username: ")
             opts.password = getpass.getpass("Password: ")
-            xmpp = Chat(opts.jid, opts.password, opts.to, opts.message)
+            xmpp = Chat(opts.jid, opts.password)
             xmpp.register_plugin('xep_0030') # Service Discovery
             xmpp.register_plugin('xep_0199') # XMPP Ping
             xmpp.register_plugin('xep_0045') # Multi-user chat
             if xmpp.connect():
-                xmpp.process(block=True)
-                while(option2 != 7):
+                while(option2 != "9"):
                     print("Menu")
                     print("1. Write message")
                     print("2. Join chat room")
-                    print("3. Add contact")
-                    print("4. Remove contact")
-                    print("5. Show contacts")
-                    print("6. Set Status")
-                    print("7. Delete Account")
+                    print("3. Create chat room")
+                    print("4. Add contact")
+                    print("5. Remove contact")
+                    print("6. Show contacts")
+                    print("7. Set Status")
+                    print("8. Delete Account")
+                    print("9. Logout")
+                    option2 = input("Ingrese la opcion")
+                    if (option2 == "1"):
+                        recipient = input("Enter the recipients jid")
+                        msg = input("Message: ")
+                        xmpp.message(msg, recipient)
+                    elif (option2 == "4"):
+                        recipient = input("Enter recipient jid to subscribe")
+                        xmpp.send_subscription(recipient)
+                    elif (option2 == "7"):
+                        status = input("Enter new status")
+                        xmpp.status(status)
+                    elif (option2 == "9"):
+                        xmpp.logout()
+                xmpp.process(block=True)
 
                 print("Done")
             else:
