@@ -19,12 +19,33 @@ class Chat(sleekxmpp.ClientXMPP):
         self.nick = nick
 
         self.add_event_handler("session_start", self.start)
-    
+        self.add_event_handler("changed_status", self.notification_changed_status)
+        self.add_event_handler("changed_subscription", self.notification_changed_subscription) 
+        self.add_event_handler("got_offline", self.notification_got_offline)
+        self.add_event_handler("got_online", self.notification_got_online)
+
+
     def start(self, event):
         print("running start")
         self.get_roster()
         self.send_presence()
     
+    def notification_changed_status(self, presence):
+        print("Notificaction Changed Status")
+        print(presence)
+
+    def notification_changed_subscription(self, presence):
+        print("Notificaction Changed Subscription")
+        print(presence)
+
+    def notification_got_offline(self, presence):
+        print("Notificaction Presence Offline")
+        print(presence)
+
+    def notification_got_online(self, presence):
+        print("Notificaction Presence Online")
+        print(presence)
+
     def incoming_message(self, message):
         if message['type'] in ('chat','normal'):
             print('Direct Message')
