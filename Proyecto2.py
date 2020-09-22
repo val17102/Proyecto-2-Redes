@@ -24,6 +24,21 @@ class Chat(sleekxmpp.ClientXMPP):
         print("running start")
         self.get_roster()
         self.send_presence()
+    
+    def incoming_message(self, message):
+        if message['type'] in ('chat','normal'):
+            print('Direct Message')
+            print(message['from'], message['body'])
+
+    def logout(self):
+        self.disconnect(wait=True)
+
+    def message(self, msg, recipient):
+        self.send_presence()
+        self.get_roster()
+        self.send_message(mto=recipient,
+                          mbody=msg,
+                          mtype='chat')
 
     
 
