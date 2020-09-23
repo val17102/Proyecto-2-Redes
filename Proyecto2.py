@@ -5,6 +5,7 @@ from optparse import OptionParser
 
 import sleekxmpp
 from sleekxmpp.exceptions import IqError, IqTimeout
+from sleekxmpp.xmlstream.stanzabase import ET, ElementBase
 if sys.version_info < (3, 0):
     from sleekxmpp.util.misc_ops import setdefaultencoding
     setdefaultencoding('utf8')
@@ -49,35 +50,55 @@ class Chat(sleekxmpp.ClientXMPP):
 
         self.room = ''
         self.nick = ''
-
+        self.auto_authorize = True
+        self.auto_subscribe = True
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("message", self.incoming_message)
         self.add_event_handler("changed_status", self.notification_changed_status)
         self.add_event_handler("changed_subscription", self.notification_changed_subscription) 
         self.add_event_handler("got_offline", self.notification_got_offline)
         self.add_event_handler("got_online", self.notification_got_online)
-
+        self.add_event_handler("presence_subscribe", self.notification_subscribe)
+        self.add_event_handler("presence_unsubscribe", self.notification_remove_subscribe)
+        if self.connect():
+            print(":waving_hand:" + "You have succesfully sign in")
+            self.process(block=False)
+        else:
+            raise Exception("Unable to connect to Redes Jabber server")
 
     def start(self, event):
+        self.send_presence(pshow='chat', pstatus="Conected")
+        self.contacts = []
         print("running start")
         self.get_roster()
-        self.send_presence()
     
     def notification_changed_status(self, presence):
-        print("Notificaction Changed Status")
-        print(presence['status'])
+        if (presence['from'].bare != self.boundjid.bare):
+            print("Notificaction Changed Status")
+            print(presence['from'].bare, ': ' ,presence['status'])
 
     def notification_changed_subscription(self, presence):
-        print("Notificaction Changed Subscription")
-        print(presence['type'])
+        if (presence['from'].bare != self.boundjid.bare and presence['show'] != ""):
+            print("Notificaction Changed Subscription")
+            print(presence['from'].bare, ': ' ,presence['show'])
 
     def notification_got_offline(self, presence):
-        print("Notificaction Presence Offline")
-        print(presence['type'])
+        if (presence['from'].bare != self.boundjid.bare):
+            print("Notificaction Presence Offline")
+            print(presence['from'].bare, ': offline')
 
     def notification_got_online(self, presence):
-        print("Notificaction Presence Online")
-        print(presence['type'])
+        if (presence['from'].bare != self.boundjid.bare):
+            print("Notificaction Presence Online")
+            print(presence['from'].bare, ': online')
+
+    def notification_subscribe(self, presence):
+        if presence['from'].bare != self.boundjid.bare:
+            print(presence['from'].bare, ": added to roster")
+
+    def notification_remove_subscribe(self, presence):
+        if presence['from'].bare != self.boundjid.bare:
+            print(presence['from'].bare, ": removed from roster")
 
     def incoming_message(self, message):
         if message['type'] in ('chat','normal'):
@@ -88,34 +109,60 @@ class Chat(sleekxmpp.ClientXMPP):
         self.disconnect(wait=True)
 
     def message(self, msg, recipient):
-        self.send_presence()
-        self.get_roster()
         self.send_message(mto=recipient,
                           mbody=msg,
                           mtype='chat')
     
     def status(self, status):
-        self.send_presence()
-        self.get_roster()
-        self.make_presence(pfrom=self.jid, pstatus=status)
+        self.send_presence(pstatus=status, pshow='available')
 
     def send_subscription(self, recipient):
         self.send_presence_subscription(pto=recipient, ptype='subscribe')
 
     def show_contacts(self):
-        self.send_presence()
         self.get_roster()
-        self.client_roster
-        print("Contactos: ", self.client_roster.groups())
+        groups = self.client_roster.groups()
+        data = []
+        self.contacts = []
+        for group in groups:
+            for i in groups[group]:
+                self.contacts.append(i)
+                sub = self.client_roster[i]['subscription']
+                name = self.client_roster[i]['name']
+                con = self.client_roster.presence(i)
+                status = ''
+                for res, pres in con.items():
+                    if pres['status']:
+                        status = pres['status']
+                data.append([name, i, sub, status])
+        print(data)
+        for j in data:
+            if j[1] != self.boundjid:
+                print(j[1],": ",j[3])
+
+    def notify_contacts(self):
+        roster = self.get_roster()
+        for i in roster['roster']['items'].keys():
+            self.contacts.append(i)
+        for j in self.contacts:
+            message = self.Message()
+            message['to'] = j
+            message['type'] = 'chat'
+            message['body'] = 'Ready'
+            itemXML = ET.fromstring("<active xmlns='http://jabber.org/protocol/chatstates'/>")
+            message.append(itemXML)
+            try:
+                message.send()
+            except IqError as e:
+                print("Failed notification", e)
+
 
     def remove_contact(self, jid):
-        self.send_presence()
         self.get_roster()
         self.del_roster_item(jid)
 
     def join_room(self, room, nick):
         self.get_roster()
-        self.send_presence()
         self.plugin['xep_0045'].joinMUC(room,
                                         nick,
                                         # If a room password is needed, use:
@@ -125,7 +172,6 @@ class Chat(sleekxmpp.ClientXMPP):
 
     def create_room(self, room, nick):
         self.get_roster()
-        self.send_presence()
         self.plugin['xep_0045'].joinMUC(room,
                                         nick,
                                         # If a room password is needed, use:
@@ -139,7 +185,6 @@ class Chat(sleekxmpp.ClientXMPP):
         self.plugin['xep_0045'].configureRoom(room, form=roomform)
     
     def group_message(self, msg):
-        self.send_presence()
         self.get_roster()
         self.send_message(mto=self.room,
                           mbody=msg,
@@ -157,6 +202,40 @@ class Chat(sleekxmpp.ClientXMPP):
         if msg['mucnick'] != self.nick:
             print(msg['mucroom'])
             print(msg['mucnick'], ': ',msg['body'])
+
+    def get_all_users(self):
+        users = self.Iq()
+        users['type'] = 'set'
+        users['to'] = 'search.redes2020.xyz'
+        users['from'] = self.boundjid.bare
+        users['id'] = 'search_result'
+        stanza = ET.fromstring(
+            "<query xmlns='jabber:iq:search'>\
+                <x xmlns='jabber:x:data' type='submit'>\
+                    <field type='hidden' var='FORM_TYPE'>\
+                        <value>jabber:iq:search</value>\
+                    </field>\
+                    <field var='Username'>\
+                        <value>1</value>\
+                    </field>\
+                    <field var='search'>\
+                        <value>*</value>\
+                    </field>\
+                </x>\
+            </query>"
+        )
+        users.append(stanza)
+        try:
+            print("User List")
+            usersR = users.send()
+            for i in usersR.findall('.//{jabber:x:data}value'):
+                if ((i.text != None) and ("@" in i.text)):
+                    print(i.text)
+        except IqError as e:
+            print(e)
+            
+                
+                
 
 if __name__ == '__main__':
     # Setup the command line arguments.
@@ -193,10 +272,8 @@ if __name__ == '__main__':
     option2 = -1
     msg = ''
     recipient = ''
-    room = ''
-    nickname = ''
     status = ''
-    while(option1 != 3):
+    while(option1 != "3"):
         print("Menu")
         print("1. Login")
         print("2. Register")
@@ -206,11 +283,15 @@ if __name__ == '__main__':
             opts.jid = raw_input("Username: ")
             opts.password = getpass.getpass("Password: ")
             xmpp = Chat(opts.jid, opts.password)
+            xmpp.register_plugin('xep_0077')
             xmpp.register_plugin('xep_0030') # Service Discovery
             xmpp.register_plugin('xep_0199') # XMPP Ping
             xmpp.register_plugin('xep_0045') # Multi-user chat
-            if xmpp.connect():
-                while(option2 != "9"):
+            xmpp.register_plugin('xep_0096')
+            xmpp.register_plugin('xep_0065')
+            xmpp.register_plugin('xep_0004')
+            
+            while(option2 != "10"):
                     print("Menu")
                     print("1. Write message")
                     print("2. Join chat room")
@@ -220,7 +301,8 @@ if __name__ == '__main__':
                     print("6. Show contacts")
                     print("7. Set Status")
                     print("8. Delete Account")
-                    print("9. Logout")
+                    print("9. Get user list")
+                    print("10. Logout")
                     option2 = input("Ingrese la opcion")
                     if (option2 == "1"):
                         recipient = input("Enter the recipients jid")
@@ -242,13 +324,12 @@ if __name__ == '__main__':
                     elif (option2 == "7"):
                         status = input("Enter new status")
                         xmpp.status(status)
+                    elif (option2 == "8"):
+                        print("Shut the fuck up")
                     elif (option2 == "9"):
+                        xmpp.get_all_users()
+                    elif (option2 == "10"):
                         xmpp.logout()
-                xmpp.process(block=True)
-
-                print("Done")
-            else:
-                print("Unable to connect.")
         elif (option1 == "2"):
             opts.jid = raw_input("Username: ")
             opts.password = getpass.getpass("Password: ")
