@@ -113,6 +113,51 @@ class Chat(sleekxmpp.ClientXMPP):
         self.get_roster()
         self.del_roster_item(jid)
 
+    def join_room(self, room, nick):
+        self.get_roster()
+        self.send_presence()
+        self.plugin['xep_0045'].joinMUC(room,
+                                        nick,
+                                        # If a room password is needed, use:
+                                        # password=the_room_password,
+                                        wait=True)
+        self.add_event_handler("groupchat_message", self.muc_message)
+
+    def create_room(self, room, nick):
+        self.get_roster()
+        self.send_presence()
+        self.plugin['xep_0045'].joinMUC(room,
+                                        nick,
+                                        # If a room password is needed, use:
+                                        # password=the_room_password,
+                                        wait=True)
+        roomform = self.plugin['xep_0045'].getRoomConfig(room)
+        roomform.set_values({
+            'muc#roomconfig_persistentroom': 1,
+            'muc#roomconfig_roomdesc': 'Plin plin plon'
+        })
+        self.plugin['xep_0045'].configureRoom(room, form=roomform)
+    
+    def group_message(self, msg):
+        self.send_presence()
+        self.get_roster()
+        self.send_message(mto=self.room,
+                          mbody=msg,
+                          mtype='groupchat')
+
+    def get_chatRooms(self):
+        self.send_presence()
+        self.get_roster()
+        result = self.plugin['xep_0030'].get_items(jid='conference.redes2020.xyz')
+        for room in result['disco_items']:
+            print(room['jid'])
+
+    def muc_message(self, msg):
+        print("muc message")
+        if msg['mucnick'] != self.nick:
+            print(msg['mucroom'])
+            print(msg['mucnick'], ': ',msg['body'])
+
 if __name__ == '__main__':
     # Setup the command line arguments.
     optp = OptionParser()
@@ -181,6 +226,11 @@ if __name__ == '__main__':
                         recipient = input("Enter the recipients jid")
                         msg = input("Message: ")
                         xmpp.message(msg, recipient)
+                    elif (option2 == "2"):
+                        xmpp.get_chatRooms()
+                    elif (option2 == "3"):
+                        room = input("Enter chatroom jid")
+                        nickname = input("Enter chatroom nickname")
                     elif (option2 == "4"):
                         recipient = input("Enter recipient jid to subscribe")
                         xmpp.send_subscription(recipient)
