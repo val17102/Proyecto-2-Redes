@@ -1,6 +1,7 @@
 import sys
 import logging
 import getpass
+import base64
 from optparse import OptionParser
 
 import sleekxmpp
@@ -100,23 +101,49 @@ class Chat(sleekxmpp.ClientXMPP):
         if presence['from'].bare != self.boundjid.bare:
             print(presence['from'].bare, ": removed from roster")
 
-    def incoming_message(self, message):
-        if message['type'] in ('chat','normal'):
-            print('Direct Message')
-            print(message['from'], message['body'])
+    def incoming_message(self, msg):
+        if msg['type'] in ('chat','normal'):
+            if (len(msg['body']) > 3000):
+                print('Image Received')
+                msg_file = msg['body'].encode('utf-8')
+                msg_file = base64.decodebytes(msg_file)
+                with open("image.png", "wb") as f:
+                    f.write(msg_file)
+                print('Image Saved')
+            else:
+                print('Direct Message')
+                print(msg['from'], msg['body'])
 
     def logout(self):
         self.disconnect(wait=True)
 
     def message(self, msg, recipient):
-        self.send_message(mto=recipient,
-                          mbody=msg,
-                          mtype='chat')
+        try:
+            self.send_message(mto=recipient,
+                            mbody=msg,
+                            mtype='chat')
+        except IqError as e:
+            print(e)
     
+    def file_message(self, filename, recipient):
+        msg = ''
+        try:
+            with open(filename, "rb") as msg_file:
+                msg = base64.b64encode(msg_file.read()).decode('utf-8')
+        except IOError as e:
+            print(e.errno)
+        try:
+            self.send_message(mto=recipient, mbody=msg, mtype="chat")
+        except IqError as e:
+            print(e)
+
     def room_message(self, msg, room):
-        self.send_message(mto=room,
-                          mbody=msg,
-                          mtype='groupchat')
+        try:
+            self.send_message(mto=room,
+                            mbody=msg,
+                            mtype='groupchat')
+        except IqError as e :
+            print(e)
     
     def status(self, status):
         self.send_presence(pstatus=status, pshow='available')
@@ -140,10 +167,9 @@ class Chat(sleekxmpp.ClientXMPP):
                     if pres['status']:
                         status = pres['status']
                 data.append([name, i, sub, status])
-        print(data)
         for j in data:
             if j[1] != self.boundjid:
-                print(j[1],": ",j[3])
+                print(j[0],"-",j[1],": ",j[3]," ",j[2])
 
 
     def remove_contact(self, jid):
@@ -282,8 +308,10 @@ class Chat(sleekxmpp.ClientXMPP):
         try:
             delete.send(now=True)
             print("Deleted Account")
+            self.logout()
         except IqError as e:
             print(e)
+            self.logout()
             
                 
                 
@@ -326,6 +354,8 @@ if __name__ == '__main__':
     status = ''
     room = ''
     nickname = ''
+    sfile = ''
+    filename = ''
     while(option1 != "3"):
         print("Menu")
         print("1. Login")
@@ -361,8 +391,15 @@ if __name__ == '__main__':
                     option2 = input("Ingrese la opcion: ")
                     if (option2 == "1"):
                         recipient = input("Enter the recipients jid: ")
-                        msg = input("Message: ")
-                        xmpp.message(msg, recipient)
+                        print("1. Send Message")
+                        print("2. Send File")
+                        sfile = input("Enter option: ")
+                        if (sfile == "1"):
+                            msg = input("Message: ")
+                            xmpp.message(msg, recipient)
+                        elif (sfile == "2"):
+                            filename = input("Filename: ")
+                            xmpp.file_message(filename, recipient)
                     elif (option2 == "2"):
                         recipient = input("Enter the room jid: ")
                         msg = input("Message: ")
