@@ -1,28 +1,28 @@
 # Proyecto-2-Redes
 
-> Descripción
+> Description
 
-> El presente proyecto está basado en la creación de un chat utilizando el protocolo XMPP, con el cual sea posible registrar una cuanta en el servidor proveido, iniciar y cerrar sesión con dicha cuenta, eliminar la cuenta, envío de mensajes a usuarios y chatrooms, mandar y obtener notificaciones, agregar y eliminar usuarios de contacto, definir mensaje de presencia, obtener detalles de los contactos, y enviar/recibir archivos.
+> This project is based on the creation of a chat using the XMPP protocol, with which it is possible to register an account on the provided server, start and close session with said account, delete the account, send messages to users and chatrooms, send and get notifications, add and remove contact users, define presence message, get contact details, and send / receive files.
 
 
 ## Contenido
 
-- [Instalación](#instalación)
-- [Funcionamiento](#funcionamiento)
-- [Desarrolladores](#desarrolladores)
+- [Instalation](#instalation)
+- [Functionality](#functionality)
+- [Developers](#developers)
 
 
-## Instalación
+## Instalation
 
-### Herramientas
+### Tools
 
-> No es necesario instalar herramientas adicionales. Todo lo necesario para comenzar es el command prompt. Si es más conveniente se puede usar cualquier IDE pero no es necesario.
+> No need to install additional tools. All you need to get started is the command prompt. If it is more convenient you can use any IDE but it is not necessary.
 
 ### Python
 
--Descargar e instalar <a href="https://www.python.org/"> Python 3.x </a>
+-Download and install <a href="https://www.python.org/"> Python 3.x </a>
 
-### Librerías
+### Libraries
 
 - sys
 - logging
@@ -30,13 +30,13 @@
 - base64
 - optparse
 
-> Estas librerías utilizadas son estándar con Python 3.x
+> These libraries are standard with Python 3.x
 
 - sleekxmpp
 - pyasn1
 - pyasn1-modules
 
-> Instalar las siguientes librerías con pip
+> Install the listed libraries with pip
 
 ```shell
 $ pip uninstall pyasn1 peas-modules sleekxmpp
@@ -46,30 +46,29 @@ $ pip install sleekxmpp==1.3.3
 
 ### Clone
 
-> Clonar este repositorio a tu ordenador local `https://github.com/val17102/Proyecto-2-Redes.git`
+> Clone this repository to your local computer `https://github.com/val17102/Proyecto-2-Redes.git`
 
 ### Setup
 
-> Para iniciar el servidor: Abrir un command prompt en la ubicación del archivo "Proyecto2.py"
+> To start the client: Open a command prompt at the file location "Proyecto2.py"
 
 ```shell
 $ py Proyecto2.py
 ```
-> También se puede usar
+> Can also be used
 
 ```shell
 $ python Proyecto2.py
 ```
 
-> Se presentaran las siguientes opciones 1. Para ingresar con una cuenta existente, 2. Para crear una cuenta nueva, 3. Para salir del programa
-
+> The following options will be presented: 1. To enter with an existing account, 2. To create a new account, 3. To exit the program
 ```shell
 1. Login
 2. Register
 3. Exit
 ```
 
-> Al ingresar con una cuenta existente se presentaran todas las opciones disponibles
+> When logging in with an existing account, all available options will be presented
 
 ```shell
 Menu
@@ -87,10 +86,10 @@ Menu
 12. Logout
 ```
 
-## Funcionamiento
+## Functionality
 
-> El funcionamiento de la comunicación que es posible con el proyecto se lleva a cabo por medio de el protocolo XMPP. 
+> The communication that is possible with the project is carried out through the XMPP protocol.
 
-## Desarrolladores
+## Developers
 
 Miguel Valle
