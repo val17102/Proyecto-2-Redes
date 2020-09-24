@@ -113,6 +113,11 @@ class Chat(sleekxmpp.ClientXMPP):
                           mbody=msg,
                           mtype='chat')
     
+    def room_message(self, msg, room):
+        self.send_message(mto=room,
+                          mbody=msg,
+                          mtype='groupchat')
+    
     def status(self, status):
         self.send_presence(pstatus=status, pshow='available')
 
@@ -140,50 +145,48 @@ class Chat(sleekxmpp.ClientXMPP):
             if j[1] != self.boundjid:
                 print(j[1],": ",j[3])
 
-    def notify_contacts(self):
-        roster = self.get_roster()
-        for i in roster['roster']['items'].keys():
-            self.contacts.append(i)
-        for j in self.contacts:
-            message = self.Message()
-            message['to'] = j
-            message['type'] = 'chat'
-            message['body'] = 'Ready'
-            itemXML = ET.fromstring("<active xmlns='http://jabber.org/protocol/chatstates'/>")
-            message.append(itemXML)
-            try:
-                message.send()
-            except IqError as e:
-                print("Failed notification", e)
-
 
     def remove_contact(self, jid):
         self.get_roster()
-        self.del_roster_item(jid)
+        try:
+            self.del_roster_item(jid)
+        except IqError as e:
+            print(e)
 
     def join_room(self, room, nick):
-        self.get_roster()
+        self.room = room
+        self.nick = nick
         self.plugin['xep_0045'].joinMUC(room,
                                         nick,
                                         # If a room password is needed, use:
                                         # password=the_room_password,
                                         wait=True)
         self.add_event_handler("groupchat_message", self.muc_message)
+        self.send_presence(pto=self.room, pshow="available", pstatus="Conected to Room")
 
     def create_room(self, room, nick):
+        self.room = room
+        self.nick = nick
         self.get_roster()
-        self.plugin['xep_0045'].joinMUC(room,
-                                        nick,
-                                        # If a room password is needed, use:
-                                        # password=the_room_password,
-                                        wait=True)
-        roomform = self.plugin['xep_0045'].getRoomConfig(room)
-        roomform.set_values({
-            'muc#roomconfig_persistentroom': 1,
-            'muc#roomconfig_roomdesc': 'Plin plin plon'
-        })
-        self.plugin['xep_0045'].configureRoom(room, form=roomform)
-    
+        try:
+            self.plugin['xep_0045'].joinMUC(room,
+                                            nick,
+                                            # If a room password is needed, use:
+                                            # password=the_room_password,
+                                            wait=True)
+            roomform = self.plugin['xep_0045'].getRoomConfig(room)
+            roomform.set_values({
+                'muc#roomconfig_persistentroom': 1,
+                'muc#roomconfig_roomdesc': 'Plin plin plon'
+            })
+            self.plugin['xep_0045'].configureRoom(room, form=roomform)
+            self.plugin['xep_0045'].setAffiliation(room, self.boundjid.bare, affiliation='owner')
+            self.add_event_handler("groupchat_message", self.muc_message)
+            self.send_presence(pto=self.room, pshow="available", pstatus="Conected to Room")
+
+        except IqError as e:
+            print(e)
+        
     def group_message(self, msg):
         self.get_roster()
         self.send_message(mto=self.room,
@@ -191,7 +194,6 @@ class Chat(sleekxmpp.ClientXMPP):
                           mtype='groupchat')
 
     def get_chatRooms(self):
-        self.send_presence()
         self.get_roster()
         result = self.plugin['xep_0030'].get_items(jid='conference.redes2020.xyz')
         for room in result['disco_items']:
@@ -231,6 +233,55 @@ class Chat(sleekxmpp.ClientXMPP):
             for i in usersR.findall('.//{jabber:x:data}value'):
                 if ((i.text != None) and ("@" in i.text)):
                     print(i.text)
+        except IqError as e:
+            print(e)
+    
+    def user_info(self, jid):
+        users = self.Iq()
+        users['type'] = 'set'
+        users['to'] = 'search.redes2020.xyz'
+        users['from'] = self.boundjid.bare
+        users['id'] = 'search_result'
+        stanza = ET.fromstring(
+            "<query xmlns='jabber:iq:search'>\
+                <x xmlns='jabber:x:data' type='submit'>\
+                    <field type='hidden' var='FORM_TYPE'>\
+                        <value>jabber:iq:search</value>\
+                    </field>\
+                    <field var='Username'>\
+                        <value>1</value>\
+                    </field>\
+                    <field var='search'>\
+                        <value>*</value>\
+                    </field>\
+                </x>\
+            </query>"
+        )
+        users.append(stanza)
+        try:
+            print("User List")
+            usersR = users.send()
+            c = 0
+            for i in usersR.findall('.//{jabber:x:data}value'):
+                if ((i.text != None) and (i.text == jid)):
+                    print(i.text)
+                    c = 1
+                elif ((i.text != None) and not("@" in i.text) and (c == 1)):
+                    print(i.text)
+                elif ((i.text != None) and (c==1) and ("@" in i.text)):
+                    c = 0
+        except IqError as e:
+            print(e)
+    
+    def delete_account(self):
+        delete = self.Iq()
+        delete['type'] = 'set'
+        delete['from'] = self.boundjid.bare
+        itemXML = ET.fromstring("<query xmlns='jabber:iq:register'><remove/></query>")
+        delete.append(itemXML)
+        try:
+            delete.send(now=True)
+            print("Deleted Account")
         except IqError as e:
             print(e)
             
@@ -273,6 +324,8 @@ if __name__ == '__main__':
     msg = ''
     recipient = ''
     status = ''
+    room = ''
+    nickname = ''
     while(option1 != "3"):
         print("Menu")
         print("1. Login")
@@ -291,44 +344,58 @@ if __name__ == '__main__':
             xmpp.register_plugin('xep_0065')
             xmpp.register_plugin('xep_0004')
             
-            while(option2 != "10"):
+            while(option2 != "12"):
                     print("Menu")
                     print("1. Write message")
-                    print("2. Join chat room")
-                    print("3. Create chat room")
-                    print("4. Add contact")
-                    print("5. Remove contact")
-                    print("6. Show contacts")
-                    print("7. Set Status")
-                    print("8. Delete Account")
-                    print("9. Get user list")
-                    print("10. Logout")
-                    option2 = input("Ingrese la opcion")
+                    print("2. Write message to room")
+                    print("3. Join chat room")
+                    print("4. Create chat room")
+                    print("5. Add contact")
+                    print("6. Remove contact")
+                    print("7. Show contacts")
+                    print("8. Set Status")
+                    print("9. Delete Account")
+                    print("10. Get user list")
+                    print("11. Get user info")
+                    print("12. Logout")
+                    option2 = input("Ingrese la opcion: ")
                     if (option2 == "1"):
-                        recipient = input("Enter the recipients jid")
+                        recipient = input("Enter the recipients jid: ")
                         msg = input("Message: ")
                         xmpp.message(msg, recipient)
                     elif (option2 == "2"):
-                        xmpp.get_chatRooms()
+                        recipient = input("Enter the room jid: ")
+                        msg = input("Message: ")
+                        xmpp.room_message(msg, recipient)
                     elif (option2 == "3"):
-                        room = input("Enter chatroom jid")
-                        nickname = input("Enter chatroom nickname")
+                        print("Available Rooms")
+                        xmpp.get_chatRooms()
+                        room = input("Enter room: ")
+                        nickname = input("Enter nickname: ")
+                        xmpp.join_room(room, nickname)
                     elif (option2 == "4"):
-                        recipient = input("Enter recipient jid to subscribe")
-                        xmpp.send_subscription(recipient)
+                        room = input("Enter chatroom jid: ")
+                        nickname = input("Enter chatroom nickname: ")
+                        xmpp.create_room(room, nickname)
                     elif (option2 == "5"):
-                        recipient = input("Enter contact jid to remove")
-                        xmpp.remove_contact(recipient)
+                        recipient = input("Enter recipient jid to subscribe: ")
+                        xmpp.send_subscription(recipient)
                     elif (option2 == "6"):
-                        xmpp.show_contacts()
+                        recipient = input("Enter contact jid to remove: ")
+                        xmpp.remove_contact(recipient)
                     elif (option2 == "7"):
-                        status = input("Enter new status")
-                        xmpp.status(status)
+                        xmpp.show_contacts()
                     elif (option2 == "8"):
-                        print("Shut the fuck up")
+                        status = input("Enter new status: ")
+                        xmpp.status(status)
                     elif (option2 == "9"):
-                        xmpp.get_all_users()
+                        xmpp.delete_account()
                     elif (option2 == "10"):
+                        xmpp.get_all_users()
+                    elif (option2 == "11"):
+                        recipient = input("Enter user jid: ")
+                        xmpp.user_info(recipient)
+                    elif (option2 == "12"):
                         xmpp.logout()
         elif (option1 == "2"):
             opts.jid = raw_input("Username: ")
