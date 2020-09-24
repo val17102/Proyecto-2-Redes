@@ -5,7 +5,7 @@
 > This project is based on the creation of a chat using the XMPP protocol, with which it is possible to register an account on the provided server, start and close session with said account, delete the account, send messages to users and chatrooms, send and get notifications, add and remove contact users, define presence message, get contact details, and send / receive files.
 
 
-## Contenido
+## Contents
 
 - [Instalation](#instalation)
 - [Functionality](#functionality)
