@@ -1,3 +1,12 @@
+#Miguel Valle - 17102
+"""
+El presente proyecto está basado en la creación de un chat utilizando 
+el protocolo XMPP, con el cual sea posible registrar una cuanta en el 
+servidor proveido, iniciar y cerrar sesión con dicha cuenta, eliminar 
+la cuenta, envío de mensajes a usuarios y chatrooms, mandar y obtener 
+notificaciones, agregar y eliminar usuarios de contacto, definir mensaje 
+de presencia, obtener detalles de los contactos, y enviar/recibir archivos.
+"""
 import sys
 import logging
 import getpass
@@ -12,7 +21,8 @@ if sys.version_info < (3, 0):
     setdefaultencoding('utf8')
 else:
     raw_input = input
-
+#Clase que sirve para iniciar una conexión con el servidor y registrar
+#una cuenta nueva.
 class Register(sleekxmpp.ClientXMPP):
     def __init__(self, jid, password):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
@@ -24,7 +34,6 @@ class Register(sleekxmpp.ClientXMPP):
         self.send_presence()
         self.get_roster()
 
-        # We're only concerned about registering, so nothing more to do here.
         self.disconnect()
     
     def register(self, iq):
@@ -44,15 +53,22 @@ class Register(sleekxmpp.ClientXMPP):
             logging.error("No response from server.")
             self.disconnect()
 
-
+#Clase principal del chat, que sirve para crear una conexion
+#con el servidor con la cuenta ingresada, y maneja todas las 
+#funcionalidades de comunicacion, notificaciones y subscripciones
 class Chat(sleekxmpp.ClientXMPP):
     def __init__(self, jid, password):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
         self.room = ''
         self.nick = ''
+        #Se define la opcion de que toda solicitud de subscripcion
+        #recibida se acepte para agregar contactos
         self.auto_authorize = True
         self.auto_subscribe = True
+        #Se inician los handlers para manejar todos los eventos de
+        #recepcion de mensajes, cambios de status, cambios de
+        #subscripcion, detectar contactos que estan offline y online
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("message", self.incoming_message)
         self.add_event_handler("changed_status", self.notification_changed_status)
@@ -66,41 +82,44 @@ class Chat(sleekxmpp.ClientXMPP):
             self.process(block=False)
         else:
             raise Exception("Unable to connect to Redes Jabber server")
-
+    #Funcion que se ejecuta al conectarse al servidor, enviando
+    #el presence de conectado, y obteniendo el restor del usuario
     def start(self, event):
         self.send_presence(pshow='chat', pstatus="Conected")
         self.contacts = []
         print("running start")
         self.get_roster()
-    
+    #Se recibe la notificacion de que un contacto ha cambiado de status
     def notification_changed_status(self, presence):
         if (presence['from'].bare != self.boundjid.bare):
             print("Notificaction Changed Status")
             print(presence['from'].bare, ': ' ,presence['status'])
-
+    #Se recibe la notificacion de que un contacto ha cambiado de subscripcion
     def notification_changed_subscription(self, presence):
         if (presence['from'].bare != self.boundjid.bare and presence['show'] != ""):
             print("Notificaction Changed Subscription")
             print(presence['from'].bare, ': ' ,presence['show'])
-
+    #Se recibe la notificacion de que un contacto ha pasado a estar offline
     def notification_got_offline(self, presence):
         if (presence['from'].bare != self.boundjid.bare):
             print("Notificaction Presence Offline")
             print(presence['from'].bare, ': offline')
-
+    #Se recibe la notificacion de que un contacto ha pasado a estar online
     def notification_got_online(self, presence):
         if (presence['from'].bare != self.boundjid.bare):
             print("Notificaction Presence Online")
             print(presence['from'].bare, ': online')
-
+    #Se recibe la notificacion de que un contacto se ha suscrito
     def notification_subscribe(self, presence):
         if presence['from'].bare != self.boundjid.bare:
             print(presence['from'].bare, ": added to roster")
-
+    #Se recibe la notificacion de que un contacto ha quitado su suscripcion
     def notification_remove_subscribe(self, presence):
         if presence['from'].bare != self.boundjid.bare:
             print(presence['from'].bare, ": removed from roster")
-
+    #Se manejan todos los mensajes que estan dirigidos hacia este usuario
+    #de forma directa, en caso de que sea un archivo, este se decodifica
+    #y se guarda en el directorio del programa
     def incoming_message(self, msg):
         if msg['type'] in ('chat','normal'):
             if (len(msg['body']) > 3000):
@@ -113,10 +132,10 @@ class Chat(sleekxmpp.ClientXMPP):
             else:
                 print('Direct Message')
                 print(msg['from'], msg['body'])
-
+    #Se desconecta el usuario del servidor
     def logout(self):
         self.disconnect(wait=True)
-
+    #Se envia un mensaje a un usuario especificado
     def message(self, msg, recipient):
         try:
             self.send_message(mto=recipient,
@@ -124,7 +143,8 @@ class Chat(sleekxmpp.ClientXMPP):
                             mtype='chat')
         except IqError as e:
             print(e)
-    
+    #Se envia un archivo especificado un usuario por medio
+    #de un mensaje
     def file_message(self, filename, recipient):
         msg = ''
         try:
@@ -136,7 +156,7 @@ class Chat(sleekxmpp.ClientXMPP):
             self.send_message(mto=recipient, mbody=msg, mtype="chat")
         except IqError as e:
             print(e)
-
+    #Se envia un mensaje a un chatroom que este disponible
     def room_message(self, msg, room):
         try:
             self.send_message(mto=room,
@@ -144,13 +164,15 @@ class Chat(sleekxmpp.ClientXMPP):
                             mtype='groupchat')
         except IqError as e :
             print(e)
-    
+    #Se define un nuevo status para el usuario, enviando su presence
     def status(self, status):
         self.send_presence(pstatus=status, pshow='available')
-
+    #Se envia una solicitud de subscripcion a un usuario para agregarlo
+    #como contacto
     def send_subscription(self, recipient):
         self.send_presence_subscription(pto=recipient, ptype='subscribe')
-
+    #Se muestran todos los contactos actuales del usuario, incluyendo su
+    # informacion 
     def show_contacts(self):
         self.get_roster()
         groups = self.client_roster.groups()
@@ -171,14 +193,17 @@ class Chat(sleekxmpp.ClientXMPP):
             if j[1] != self.boundjid:
                 print(j[0],"-",j[1],": ",j[3]," ",j[2])
 
-
+    #Se quita un contacto del restor actual del usuario
     def remove_contact(self, jid):
         self.get_roster()
         try:
             self.del_roster_item(jid)
         except IqError as e:
             print(e)
-
+    #Se conecta el usuario a un chatroom especificado con
+    #el nickname deseado, enviando su presencia al cuarto
+    # luego se agrega un listener para recibir los mensajes
+    #del chatroom
     def join_room(self, room, nick):
         self.room = room
         self.nick = nick
@@ -189,7 +214,10 @@ class Chat(sleekxmpp.ClientXMPP):
                                         wait=True)
         self.add_event_handler("groupchat_message", self.muc_message)
         self.send_presence(pto=self.room, pshow="available", pstatus="Conected to Room")
-
+    #Se crea un chatroom nuevo, con el nombre especificado, y un
+    #sobrenombre, y luego se asegura que este sea persistente
+    #y este definido que el usuario es el dueño, luego se agrega
+    #un listener para recibir los mensajes del chatroom
     def create_room(self, room, nick):
         self.room = room
         self.nick = nick
@@ -212,25 +240,23 @@ class Chat(sleekxmpp.ClientXMPP):
 
         except IqError as e:
             print(e)
-        
-    def group_message(self, msg):
-        self.get_roster()
-        self.send_message(mto=self.room,
-                          mbody=msg,
-                          mtype='groupchat')
-
+    
+    #Se obtiene un listado de los chatrooms disponibles ubicados en
+    #la direccion respectiva de conference.redes2020.xyz
     def get_chatRooms(self):
         self.get_roster()
         result = self.plugin['xep_0030'].get_items(jid='conference.redes2020.xyz')
         for room in result['disco_items']:
             print(room['jid'])
-
+    #Funcion que sirve para recibir los mensajes de chatrooms,
+    #pero no muestra los mensajes que no sean del usuario
     def muc_message(self, msg):
         print("muc message")
         if msg['mucnick'] != self.nick:
             print(msg['mucroom'])
             print(msg['mucnick'], ': ',msg['body'])
-
+    #Se obtiene un listado de todos los usuarios que estan registrados
+    #en el servidor
     def get_all_users(self):
         users = self.Iq()
         users['type'] = 'set'
@@ -261,7 +287,8 @@ class Chat(sleekxmpp.ClientXMPP):
                     print(i.text)
         except IqError as e:
             print(e)
-    
+    #Se obtiene la informacion de un usuario especificado, buscandolo
+    #en el listado de todos los usuarios registrados en el servidor
     def user_info(self, jid):
         users = self.Iq()
         users['type'] = 'set'
@@ -298,7 +325,7 @@ class Chat(sleekxmpp.ClientXMPP):
                     c = 0
         except IqError as e:
             print(e)
-    
+    #Se borra el usuario actualmente conectado del servidor
     def delete_account(self):
         delete = self.Iq()
         delete['type'] = 'set'
@@ -315,7 +342,9 @@ class Chat(sleekxmpp.ClientXMPP):
             
                 
                 
-
+#Funcion principal en la cual inicialmente se definen un objeto para
+#el manejo de los datos ingresados para crear una cuenta nueva en el 
+#servidor, o para ingresar una cuenta
 if __name__ == '__main__':
     # Setup the command line arguments.
     optp = OptionParser()
@@ -346,7 +375,9 @@ if __name__ == '__main__':
     # Setup logging.
     logging.basicConfig(level=opts.loglevel,
                         format='%(levelname)-8s %(message)s')
-    
+    #Se definen las diferentes variables para manejar las opciones
+    #ingresadas por el usuario, y los datos que se utilizaran 
+    #para las funciones de la conexion
     option1 = -1
     option2 = -1
     msg = ''
@@ -356,6 +387,8 @@ if __name__ == '__main__':
     nickname = ''
     sfile = ''
     filename = ''
+    #While principal para las diferentes opciones de un usuario antes
+    #de ingresar como usuario al servidor
     while(option1 != "3"):
         print("Menu")
         print("1. Login")
@@ -363,9 +396,13 @@ if __name__ == '__main__':
         print("3. Exit")
         option1 = input("Ingrese la opcion: ")
         if (option1 == "1"):
+            #Se solicitan los datos del usuario para ingresar a su cuenta
             opts.jid = raw_input("Username: ")
             opts.password = getpass.getpass("Password: ")
+            #Se crea la conexion
             xmpp = Chat(opts.jid, opts.password)
+            #Se definen los diferentes plugins necesarios para
+            #el manejo de diferentes funcionalidades
             xmpp.register_plugin('xep_0077')
             xmpp.register_plugin('xep_0030') # Service Discovery
             xmpp.register_plugin('xep_0199') # XMPP Ping
@@ -373,7 +410,8 @@ if __name__ == '__main__':
             xmpp.register_plugin('xep_0096')
             xmpp.register_plugin('xep_0065')
             xmpp.register_plugin('xep_0004')
-            
+            #Se presentan las opciones disponibles para el usuario 
+            #una vez ingresado su usuario
             while(option2 != "12"):
                     print("Menu")
                     print("1. Write message")
@@ -435,10 +473,13 @@ if __name__ == '__main__':
                     elif (option2 == "12"):
                         xmpp.logout()
         elif (option1 == "2"):
+            #Se solicitan los datos del usuario para crear una cuenta nueva
             opts.jid = raw_input("Username: ")
             opts.password = getpass.getpass("Password: ")
-
+            #Se inicia la conexion paara registrar el usuario
             xmpp = Register(opts.jid, opts.password)
+            #Se definen los diferentes plugins necesarios para
+            #el manejo de las funcionalidades para registrar usuario
             xmpp.register_plugin('xep_0030') # Service Discovery
             xmpp.register_plugin('xep_0004') # Data forms
             xmpp.register_plugin('xep_0066') # Out-of-band Data
