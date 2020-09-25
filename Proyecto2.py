@@ -493,3 +493,5 @@ if __name__ == '__main__':
             print('')
         else:
             print("Opcion no valida")
+        option1 = ''
+        option2 = ''
